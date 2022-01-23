@@ -29,7 +29,7 @@ import numpy as np
 from random import random, randrange, randint, shuffle, choice
 
 from transformer.tokenization import BertTokenizer
-
+from transformers import BertTokenizerFast
 
 # This is used for running on Huawei Cloud.
 oncloud = True
@@ -361,7 +361,7 @@ def main():
     if args.num_workers > 1 and args.reduce_memory:
         raise ValueError("Cannot use multiple workers while reducing memory")
 
-    tokenizer = BertTokenizer.from_pretrained(args.bert_model, do_lower_case=args.do_lower_case)
+    tokenizer = BertTokenizerFast.from_pretrained(args.bert_model, do_lower_case=args.do_lower_case)
     vocab_list = list(tokenizer.vocab.keys())
     doc_num = 0
     with DocumentDatabase(reduce_memory=args.reduce_memory) as docs:

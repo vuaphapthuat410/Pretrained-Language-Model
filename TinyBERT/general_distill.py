@@ -40,6 +40,7 @@ from torch.nn import MSELoss
 from transformer.file_utils import WEIGHTS_NAME, CONFIG_NAME
 from transformer.modeling import TinyBertForPreTraining, BertModel
 from transformer.tokenization import BertTokenizer
+from transformers import BertTokenizerFast
 from transformer.optimization import BertAdam
 
 csv.field_size_limit(sys.maxsize)
@@ -323,7 +324,7 @@ def main():
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
-    tokenizer = BertTokenizer.from_pretrained(args.teacher_model, do_lower_case=args.do_lower_case)
+    tokenizer = BertTokenizerFast.from_pretrained(args.teacher_model, do_lower_case=args.do_lower_case)
 
     total_train_examples = 0
     for i in range(int(args.num_train_epochs)):
