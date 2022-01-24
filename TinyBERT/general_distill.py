@@ -32,7 +32,7 @@ import torch
 from collections import namedtuple
 from tempfile import TemporaryDirectory
 from pathlib import Path
-from torch.utils.data import (DataLoader, RandomSampler,Dataset)
+from torch.utils.data import (DataLoader, RandomSampler,Dataset, Subset)
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm, trange
 from torch.nn import MSELoss
@@ -264,7 +264,24 @@ def main():
     parser.add_argument('--eval_step',
                         type=int,
                         default=1000)
-
+    parser.add_argument('--start_indices',
+                        type=int,
+                        default=0)
+    parser.add_argument('--last_tr_loss',
+                        type=float,
+                        default=0.)
+    parser.add_argument('--last_att_loss',
+                        type=float,
+                        default=0.)
+    parser.add_argument('--last_rep_loss',
+                        type=float,
+                        default=0.)
+    parser.add_argument('--last_epoch',
+                        type=int,
+                        default=0)
+    parser.add_argument('--last_global_step',
+                        type=int,
+                        default=0)
     # This is used for running on Huawei Cloud.
     parser.add_argument('--data_url',
                         type=str,
@@ -380,24 +397,28 @@ def main():
                          warmup=args.warmup_proportion,
                          t_total=num_train_optimization_steps)
 
-    global_step = 0
+    global_step = args.last_global_step if args.continue_train else args.start_indices
     logging.info("***** Running training *****")
     logging.info("  Num examples = {}".format(total_train_examples))
     logging.info("  Batch size = %d", args.train_batch_size)
     logging.info("  Num steps = %d", num_train_optimization_steps)
 
     for epoch in trange(int(args.num_train_epochs), desc="Epoch"):
+        if epoch < args.last_epoch:
+            continue
         epoch_dataset = PregeneratedDataset(epoch=epoch, training_path=args.pregenerated_data, tokenizer=tokenizer,
                                             num_data_epochs=num_data_epochs, reduce_memory=args.reduce_memory)
+        if args.continue_train and args.last_epoch == epoch:
+            epoch_dataset = Subset(epoch_dataset, np.arange(args.start_indices*args.train_batch_size, len(epoch_dataset)))
         if args.local_rank == -1:
             train_sampler = RandomSampler(epoch_dataset)
         else:
             train_sampler = DistributedSampler(epoch_dataset)
         train_dataloader = DataLoader(epoch_dataset, sampler=train_sampler, batch_size=args.train_batch_size)
 
-        tr_loss = 0.
-        tr_att_loss = 0.
-        tr_rep_loss = 0.
+        tr_loss = args.last_tr_loss if args.last_epoch == epoch else 0
+        tr_att_loss = args.last_att_loss if args.last_epoch == epoch else 0
+        tr_rep_loss = args.last_rep_loss if args.last_epoch == epoch else 0
         student_model.train()
         nb_tr_examples, nb_tr_steps = 0, 0
         with tqdm(total=len(train_dataloader), desc="Epoch {}".format(epoch)) as pbar:
