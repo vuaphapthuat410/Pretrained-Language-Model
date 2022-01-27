@@ -1140,3 +1140,65 @@ class TinyBertForSequenceClassification(BertPreTrainedModel):
                 tmp.append(self.fit_dense(sequence_layer))
             sequence_output = tmp
         return logits, att_output, sequence_output
+
+class TinyBertForTokenClassification(BertPreTrainedModel):
+    def __init__(self, config, num_labels, fit_size=768):
+        super(TinyBertForTokenClassification, self).__init__(config)
+        self.num_labels = config.num_labels
+
+        self.bert = BertModel(config)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.classifier = nn.Linear(config.hidden_size, num_labels)
+
+        # Initialize weights and apply final processing
+        self.fit_dense = nn.Linear(config.hidden_size, fit_size)
+        self.apply(self.init_bert_weights)
+
+    def forward(
+        self,
+        input_ids,
+        attention_mask=None,
+        token_type_ids=None,
+        labels=None,
+        is_student=False
+    ):
+        """
+        labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
+            Labels for computing the token classification loss. Indices should be in `[0, ..., config.num_labels - 1]`.
+        """
+
+        sequence_output, att_output, pooled_output = self.bert(input_ids, token_type_ids, attention_mask,
+                            output_all_encoded_layers=True, output_att=True)
+
+        logits = self.classifier(torch.relu(sequence_output)) # dropout - from tinybert code
+
+        # loss = None
+        # if labels is not None:
+        #     loss_fct = CrossEntropyLoss()
+        #     # Only keep active parts of the loss
+        #     if attention_mask is not None:
+        #         active_loss = attention_mask.view(-1) == 1
+        #         active_logits = logits.view(-1, self.num_labels)
+        #         active_labels = torch.where(
+        #             active_loss, labels.view(-1), torch.tensor(loss_fct.ignore_index).type_as(labels)
+        #         )
+        #         loss = loss_fct(active_logits, active_labels)
+        #     else:
+        #         loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+
+        # if not return_dict:
+        #     output = (logits,) + outputs[2:]
+        #     return ((loss,) + output) if loss is not None else output
+
+        tmp = []
+        if is_student:
+            for s_id, sequence_layer in enumerate(sequence_output):
+                tmp.append(self.fit_dense(sequence_layer))
+            sequence_output = tmp
+
+        return TokenClassifierOutput(
+            loss=loss,
+            logits=logits,
+            hidden_states=outputs.hidden_states,
+            attentions=outputs.attentions,
+        )
